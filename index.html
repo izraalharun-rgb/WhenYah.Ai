@@ -1,0 +1,1321 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Chat RP-ku</title>
+
+  <!-- ========== TAMPILAN ========== -->
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; font-family: sans-serif;
+      background: #111; color: #eee;
+      display: flex; flex-direction: column; height: 100dvh;
+    }
+    button { font-family: inherit; }
+    #chat { flex: 1; overflow-y: auto; padding: 12px; }
+    .msg {
+      max-width: 85%; padding: 10px 14px; margin-bottom: 10px;
+      border-radius: 14px; white-space: pre-wrap; line-height: 1.4;
+    }
+    .user { background: #2b5cff; margin-left: auto; }
+    .ai   { background: #2a2a2a; }
+
+    /* ========== KOLOM KETIK ========== */
+    #bar { padding: 10px 12px 8px; background: #1a1a1a; }
+    #box {
+      display: flex; align-items: center; gap: 8px;
+      background: #2a2a2a; border-radius: 16px;
+      padding: 6px 6px 6px 16px;
+    }
+    #input {
+      flex: 1; min-width: 0; padding: 8px 0;
+      border: none; outline: none; background: none;
+      color: #eee; font-size: 16px;
+    }
+    #input::placeholder { color: #8a8a8a; }
+
+    /* Tombol kirim: putih kalau aktif, abu-abu kalau kosong/terkunci */
+    #send {
+      width: 42px; height: 42px; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      border: none; border-radius: 12px;
+      background: #ffffff; color: #111111;
+      transition: background 0.15s, color 0.15s;
+    }
+    #send:disabled { background: #2f333b; color: #7c8594; }
+
+    #note {
+      margin-top: 6px; text-align: center;
+      font-size: 12px; color: #888;
+    }
+
+    /* ========== BAR ATAS ========== */
+    #top {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 8px 14px; background: #1a1a1a;
+    }
+    #top span { font-weight: bold; font-size: 18px; }
+    #menu-btn {
+      border: none; background: none; color: #eee;
+      font-size: 26px; line-height: 1; padding: 4px 8px;
+    }
+
+    /* ========== MENU SAMPING (DRAWER) ========== */
+    #overlay {
+      position: fixed; inset: 0; z-index: 4;
+      background: rgba(0, 0, 0, 0.55);
+      opacity: 0; visibility: hidden; transition: opacity 0.2s;
+    }
+    #overlay.open { opacity: 1; visibility: visible; }
+
+    #drawer {
+      position: fixed; top: 0; right: 0; bottom: 0; z-index: 5;
+      width: min(320px, 85vw); padding: 16px;
+      background: #181818; box-shadow: -4px 0 20px rgba(0, 0, 0, 0.5);
+      display: flex; flex-direction: column;
+      transform: translateX(100%); transition: transform 0.25s;
+    }
+    #drawer.open { transform: translateX(0); }
+
+    .drawer-head {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 14px;
+    }
+    .drawer-head h3 { margin: 0; font-size: 20px; }
+    #drawer-close {
+      border: none; background: none; color: #ccc;
+      font-size: 24px; padding: 4px 8px;
+    }
+
+    /* Dua tombol sejajar: Chat baru + Pengaturan */
+    #actions { display: flex; gap: 8px; }
+    .act-btn {
+      flex: 1; display: flex; align-items: center; justify-content: center;
+      gap: 6px; padding: 12px 8px; border: none; border-radius: 12px;
+      background: #eee; color: #111; font-size: 14px; font-weight: bold;
+    }
+
+    .list-label {
+      display: flex; justify-content: space-between;
+      margin: 18px 4px 8px; font-size: 13px; letter-spacing: 2px;
+      color: #888; font-weight: bold;
+    }
+    #list { flex: 1; min-height: 0; overflow-y: auto; }
+    .empty { padding: 30px 0; text-align: center; color: #888; }
+
+    .item {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 12px; border-radius: 10px; margin-bottom: 4px; cursor: pointer;
+    }
+    .item.active { background: #2a2a2a; }
+    .item .title {
+      flex: 1; min-width: 0; font-weight: bold;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .dots {
+      border: none; background: none; color: #ccc;
+      font-size: 22px; line-height: 1; padding: 0 8px;
+    }
+    .rename {
+      width: 100%; padding: 6px 8px; border: 1px solid #2b5cff;
+      border-radius: 8px; background: #111; color: #eee; font-size: 16px;
+    }
+
+    /* ========== STEP 6.5: TAMPILAN LOGIN / BELUM LOGIN ========== */
+    /* Saat belum login: sembunyikan kartu akun, tampilkan blok tamu. Sebaliknya saat sudah login. */
+    #drawer.logged-out #userbox { display: none; }
+    #drawer:not(.logged-out) #guest { display: none; }
+
+    #guest { margin-top: 12px; padding-top: 12px; border-top: 1px solid #2a2a2a; }
+    #login-open { width: 100%; flex: none; padding: 14px; font-size: 16px; }
+    .guest-link {
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      padding: 10px 0 0; color: #ddd; font-weight: bold; font-size: 14px;
+    }
+    .guest-mini {
+      display: flex; justify-content: center; gap: 10px;
+      padding-top: 14px; color: #888; font-size: 13px; font-weight: bold;
+    }
+
+    /* Panel profil (muncul di atas kartu akun) */
+    #profile {
+      display: none;
+      margin-top: 12px; padding: 14px;
+      background: #222; border: 1px solid #333; border-radius: 16px;
+    }
+    #profile.open { display: block; }
+    .profile-title { margin: 0 0 4px; font-size: 16px; font-weight: bold; }
+    #acc-email { margin: 0 0 12px; font-size: 12px; color: #888; word-break: break-all; }
+    .field-label {
+      display: block; margin-bottom: 6px;
+      font-size: 12px; font-weight: bold; letter-spacing: 1px; color: #888;
+    }
+    #name-input {
+      width: 100%; padding: 10px 12px;
+      border: 1px solid #3a3a3a; border-radius: 10px;
+      background: #111; color: #eee; font-size: 16px; outline: none;
+    }
+    #name-input:focus { border-color: #2b5cff; }
+    .field-hint { margin: 8px 2px 12px; font-size: 12px; line-height: 1.4; color: #888; }
+    #save-name {
+      width: 100%; padding: 11px; border: none; border-radius: 10px;
+      background: #eee; color: #111; font-size: 15px; font-weight: bold;
+    }
+    #name-status {
+      min-height: 16px; margin-top: 8px; text-align: center;
+      font-size: 13px; color: #6ddc8b;
+    }
+    #name-status.error { color: #ff5a5a; }
+    #logout {
+      display: flex; align-items: center; gap: 8px; width: 100%;
+      margin-top: 10px; padding: 12px 4px 2px;
+      border: none; border-top: 1px solid #333; background: none;
+      color: #ff5a5a; font-size: 15px; font-weight: bold;
+    }
+
+    /* Kartu akun di dasar menu */
+    #account {
+      display: flex; align-items: center; gap: 12px;
+      margin-top: 12px; padding: 10px; cursor: pointer;
+      background: #222; border: 1px solid #333; border-radius: 14px;
+    }
+    #acc-avatar {
+      width: 44px; height: 44px; flex-shrink: 0; border-radius: 50%;
+      background: #f06a00; color: white; font-size: 20px; font-weight: bold;
+      display: flex; align-items: center; justify-content: center;
+    }
+    #acc-info { flex: 1; min-width: 0; }
+    #acc-name {
+      font-weight: bold; font-size: 16px;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    #acc-plan {
+      display: flex; align-items: center; gap: 6px; margin-top: 2px;
+      font-size: 12px; font-weight: bold; letter-spacing: 1px; color: #888;
+    }
+    #acc-plan i {
+      width: 8px; height: 8px; border-radius: 50%; background: #777;
+      display: inline-block;
+    }
+    #acc-arrow { color: #888; flex-shrink: 0; transition: transform 0.2s; }
+    #account.open #acc-arrow { transform: rotate(180deg); }
+
+    /* Menu kecil Edit / Hapus */
+    #menu {
+      position: fixed; z-index: 6; min-width: 160px; padding: 6px;
+      background: #222; border: 1px solid #3a3a3a; border-radius: 12px;
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5);
+    }
+    #menu.hidden { display: none; }
+    #menu button {
+      display: block; width: 100%; text-align: left;
+      padding: 10px 12px; border: none; border-radius: 8px;
+      background: none; color: #eee; font-size: 15px; font-weight: bold;
+    }
+    #menu-hapus { color: #ff5a5a !important; }
+    #menu-hapus.armed { background: #b3261e !important; color: white !important; }
+
+    /* ========== STEP 6.5: LAYAR LOGIN / DAFTAR ========== */
+    #auth {
+      position: fixed; inset: 0; z-index: 8;
+      background: #111318; overflow-y: auto;
+      display: flex; align-items: center; justify-content: center;
+      padding: 20px;
+    }
+    #auth.hidden { display: none; }
+    #auth-close {
+      position: absolute; top: 12px; right: 12px;
+      border: none; background: none; color: #ccc;
+      font-size: 24px; padding: 8px 12px;
+    }
+    .auth-card {
+      width: 100%; max-width: 380px; text-align: center;
+      background: #1a1d24; border: 1px solid #2c303a;
+      border-radius: 24px; padding: 26px 20px;
+    }
+    .auth-badge {
+      display: inline-block; padding: 8px 16px; margin-bottom: 14px;
+      border: 1px solid #2c303a; border-radius: 999px; background: #15171d;
+      font-size: 12px; font-weight: bold; letter-spacing: 0.5px;
+    }
+    .auth-card h2 { margin: 0 0 6px; font-size: 28px; }
+    #auth-sub { margin: 0 0 20px; color: #9aa0ac; font-size: 14px; }
+
+    .auth-field {
+      display: flex; align-items: center; gap: 10px;
+      margin-bottom: 12px; padding: 0 14px;
+      background: #242833; border: 1px solid #333846; border-radius: 14px;
+    }
+    .auth-field.hidden { display: none; }
+    .auth-field:focus-within { border-color: #2b5cff; }
+    .auth-field svg { color: #9aa0ac; flex-shrink: 0; }
+    .auth-field input {
+      flex: 1; min-width: 0; padding: 16px 0;
+      border: none; outline: none; background: none;
+      color: #eee; font-size: 16px;
+    }
+    #eye { display: flex; border: none; background: none; color: #9aa0ac; padding: 4px; }
+
+    #auth-error { min-height: 18px; margin: 4px 0 8px; font-size: 13px; color: #ff5a5a; }
+    #auth-submit {
+      width: 100%; padding: 15px; border: none; border-radius: 14px;
+      background: #2b5cff; color: white; font-size: 17px; font-weight: bold;
+    }
+    #auth-submit:disabled { opacity: 0.6; }
+
+    .auth-or {
+      display: flex; align-items: center; gap: 12px;
+      margin: 16px 0; color: #9aa0ac; font-size: 13px; font-weight: bold;
+    }
+    .auth-or::before, .auth-or::after {
+      content: ""; flex: 1; height: 1px; background: #2c303a;
+    }
+    #google-btn {
+      display: flex; align-items: center; justify-content: center; gap: 12px;
+      width: 100%; padding: 14px; border: 1px solid #2c303a; border-radius: 14px;
+      background: #15171d; color: #eee; font-size: 16px;
+    }
+    #auth-switch { margin: 18px 0 0; font-size: 14px; color: #9aa0ac; }
+    #switch-btn {
+      border: none; background: none; padding: 0;
+      color: #3d7bff; font-size: 14px; font-weight: bold;
+    }
+
+    /* ========== POPUP ========== */
+    #popup {
+      position: fixed; inset: 0; z-index: 10;
+      background: rgba(0, 0, 0, 0.65);
+      display: flex; align-items: center; justify-content: center;
+      padding: 20px;
+    }
+    #popup.hidden { display: none; }
+    .popup-box {
+      background: #222; border-radius: 16px; padding: 20px;
+      max-width: 320px; width: 100%; text-align: center;
+    }
+    .popup-box h3 { margin: 0 0 8px; }
+    .popup-box p { margin: 0 0 16px; line-height: 1.4; color: #ccc; }
+    #popup-ok {
+      padding: 10px 24px; border: none; border-radius: 10px;
+      background: #2b5cff; color: white; font-size: 16px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Bar atas: cuma nama karakter + tombol garis tiga -->
+  <div id="top">
+    <span>Luna</span>
+    <button id="menu-btn" aria-label="Menu">☰</button>
+  </div>
+
+  <!-- Kerangka halaman -->
+  <div id="chat"></div>
+
+  <!-- Kolom ketik -->
+  <div id="bar">
+    <div id="box">
+      <input id="input" placeholder="Chat with Luna...">
+      <button id="send" aria-label="Kirim">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M22 2 11 13"/>
+          <path d="M22 2 15 22l-4-9-9-4 20-7z"/>
+        </svg>
+      </button>
+    </div>
+    <div id="note">Luna adalah AI dan dapat membuat kesalahan.</div>
+  </div>
+
+  <!-- Menu samping -->
+  <div id="overlay"></div>
+  <div id="drawer" class="logged-out">
+    <div class="drawer-head">
+      <h3>Chat RP-ku</h3>
+      <button id="drawer-close" aria-label="Tutup">✕</button>
+    </div>
+
+    <div id="actions">
+      <button id="new-chat" class="act-btn">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2.2" stroke-linecap="round">
+          <path d="M12 5v14M5 12h14"/>
+        </svg>
+        Chat baru
+      </button>
+      <!-- Pengaturan: tampilan saja, belum ada fungsinya -->
+      <button id="settings-btn" class="act-btn">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+        </svg>
+        Pengaturan
+      </button>
+    </div>
+
+    <div class="list-label"><span>OBROLAN</span><span id="count">0</span></div>
+    <div id="list"></div>
+
+    <!-- Tampil kalau SUDAH login -->
+    <div id="userbox">
+      <div id="profile">
+        <h4 class="profile-title">Profil</h4>
+        <div id="acc-email"></div>
+        <label class="field-label" for="name-input">NAMA</label>
+        <input id="name-input" maxlength="30" autocomplete="off" placeholder="Nama kamu">
+        <p class="field-hint">Luna akan memanggilmu dengan nama ini.</p>
+        <button id="save-name">Simpan</button>
+        <div id="name-status"></div>
+        <button id="logout">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+            <polyline points="16 17 21 12 16 7"/>
+            <line x1="21" y1="12" x2="9" y2="12"/>
+          </svg>
+          Keluar
+        </button>
+      </div>
+
+      <div id="account">
+        <div id="acc-avatar">?</div>
+        <div id="acc-info">
+          <div id="acc-name">Nama</div>
+          <div id="acc-plan"><i></i>FREE</div>
+        </div>
+        <svg id="acc-arrow" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="18 15 12 9 6 15"/>
+        </svg>
+      </div>
+    </div>
+
+    <!-- Tampil kalau BELUM login (tampilan saja untuk link-link kecilnya) -->
+    <div id="guest">
+      <button id="login-open" class="act-btn">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/>
+          <polyline points="10 17 15 12 10 7"/>
+          <line x1="15" y1="12" x2="3" y2="12"/>
+        </svg>
+        Login
+      </button>
+      <div class="guest-link">Yang Baru</div>
+      <div class="guest-link">Kritik &amp; Saran</div>
+      <div class="guest-mini"><span>Tentang</span>•<span>FAQ</span>•<span>Privasi</span></div>
+    </div>
+  </div>
+
+  <!-- Menu kecil Edit / Hapus (muncul saat titik tiga diketuk) -->
+  <div id="menu" class="hidden">
+    <button id="menu-edit">Edit</button>
+    <button id="menu-hapus">Hapus</button>
+  </div>
+
+  <!-- STEP 6.5: Layar login / daftar -->
+  <div id="auth" class="hidden">
+    <button id="auth-close" aria-label="Tutup">✕</button>
+    <div class="auth-card">
+      <div class="auth-badge">WELCOME TO Chat RP-ku</div>
+      <h2 id="auth-title">Welcome Back</h2>
+      <p id="auth-sub">Masuk buat ngelanjutin obrolanmu.</p>
+
+      <!-- Kolom nama: cuma tampil saat daftar -->
+      <div class="auth-field hidden" id="f-name">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+          <circle cx="12" cy="7" r="4"/>
+        </svg>
+        <input id="auth-name" maxlength="30" autocomplete="name" placeholder="Nama kamu">
+      </div>
+
+      <div class="auth-field">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="2" y="4" width="20" height="16" rx="2"/>
+          <path d="m22 7-10 6L2 7"/>
+        </svg>
+        <input id="auth-email" type="text" inputmode="email" autocomplete="email"
+               autocapitalize="none" placeholder="Email address">
+      </div>
+
+      <div class="auth-field">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="4" y="11" width="16" height="10" rx="2"/>
+          <path d="M8 11V7a4 4 0 0 1 8 0v4"/>
+        </svg>
+        <input id="auth-pw" type="password" autocomplete="current-password" placeholder="Password">
+        <button id="eye" type="button" aria-label="Lihat password">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+            <circle cx="12" cy="12" r="3"/>
+          </svg>
+        </button>
+      </div>
+
+      <div id="auth-error"></div>
+      <button id="auth-submit">Login →</button>
+
+      <div class="auth-or">OR</div>
+
+      <button id="google-btn" type="button">
+        <svg width="22" height="22" viewBox="0 0 48 48">
+          <path fill="#FFC107" d="M43.6 20.1H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 8 3l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.9z"/>
+          <path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 8 3l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/>
+          <path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-7.9l-6.5 5C9.5 39.6 16.2 44 24 44z"/>
+          <path fill="#1976D2" d="M43.6 20.1H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.9z"/>
+        </svg>
+        Lanjut pake Google
+      </button>
+
+      <p id="auth-switch"><span id="switch-text"></span> <button id="switch-btn" type="button"></button></p>
+    </div>
+  </div>
+
+  <!-- Popup (di luar kotak chat) -->
+  <div id="popup" class="hidden">
+    <div class="popup-box">
+      <h3 id="popup-title"></h3>
+      <p id="popup-text"></p>
+      <button id="popup-ok">Oke</button>
+    </div>
+  </div>
+
+  <script>
+    // ========== PERSIAPAN ==========
+    const chatEl = document.getElementById("chat");
+    const inputEl = document.getElementById("input");
+    const sendBtn = document.getElementById("send");
+    const popupEl = document.getElementById("popup");
+    const popupTitle = document.getElementById("popup-title");
+    const popupText = document.getElementById("popup-text");
+
+    // Elemen menu samping
+    const menuBtn = document.getElementById("menu-btn");
+    const overlayEl = document.getElementById("overlay");
+    const drawerEl = document.getElementById("drawer");
+    const listEl = document.getElementById("list");
+    const countEl = document.getElementById("count");
+    const menuEl = document.getElementById("menu");
+    const menuEdit = document.getElementById("menu-edit");
+    const menuHapus = document.getElementById("menu-hapus");
+
+    // Elemen profil
+    const accountEl = document.getElementById("account");
+    const profileEl = document.getElementById("profile");
+    const nameInput = document.getElementById("name-input");
+    const saveNameBtn = document.getElementById("save-name");
+    const nameStatus = document.getElementById("name-status");
+
+    // Elemen layar login
+    const authEl = document.getElementById("auth");
+    const authTitle = document.getElementById("auth-title");
+    const authSub = document.getElementById("auth-sub");
+    const fName = document.getElementById("f-name");
+    const authName = document.getElementById("auth-name");
+    const authEmail = document.getElementById("auth-email");
+    const authPw = document.getElementById("auth-pw");
+    const authError = document.getElementById("auth-error");
+    const authSubmit = document.getElementById("auth-submit");
+    const switchText = document.getElementById("switch-text");
+    const switchBtn = document.getElementById("switch-btn");
+
+    // Ambil API key dari HP; kalau belum ada, minta sekali
+    let apiKey = localStorage.getItem("gemini_key");
+    if (!apiKey) {
+      apiKey = prompt("Tempel API key Gemini kamu:");
+      if (apiKey) localStorage.setItem("gemini_key", apiKey);
+    }
+
+    // Urutan = prioritas. Kalau yang pertama bermasalah, otomatis coba berikutnya.
+    const MODELS = [
+      "gemini-3.8-flash",
+      "gemini-3.5-flash",
+      "gemini-3.5-flash-lite",
+      "gemini-3.1-flash-lite",
+      "gemini-3.6-flash"
+    ];
+
+    // Kode error yang artinya "modelnya lagi bermasalah, coba model lain":
+    // 429 = kuota habis, 404 = model tidak ada,
+    // 500/503/504 = server Google error atau sibuk
+    const BOLEH_LANJUT = [429, 404, 500, 503, 504];
+
+    let busy = false;     // penanda: lagi nunggu balasan atau tidak
+    let locked = false;   // penanda: lagi dikunci karena limit habis
+    let unlockTimer = null;
+
+    // ========== STEP 6.5: STATUS LOGIN ==========
+    // akun = daftar akun terdaftar, sesi = email akun yang sedang login (atau null)
+    let akun = [];
+    let sesi = null;
+    let namaUser = "Tamu";
+
+    const KUNCI_AKUN = "rp_accounts";
+    const KUNCI_SESI = "rp_session";
+
+    // Tombol kirim aktif hanya kalau: sudah login, ada teks, tidak menunggu balasan, tidak terkunci limit
+    function updateSendBtn() {
+      sendBtn.disabled = busy || locked || !sesi || inputEl.value.trim() === "";
+    }
+
+    // ========== KARAKTER ==========
+    const CHARACTER = `
+Kamu adalah Luna, penyihir muda berusia 19 tahun yang tinggal sendirian di menara tua di tengah hutan.
+
+KEPRIBADIAN:
+- Ceria tapi agak ceroboh, sering salah merapal mantra
+- Penasaran dengan dunia luar, tapi malu kalau ditanya soal dirinya
+
+GAYA BICARA:
+- Santai, pakai bahasa Indonesia sehari-hari
+- Sesekali gugup dan terbata-bata kalau malu
+
+ATURAN ROLEPLAY:
+- Selalu tetap dalam karakter. Jangan pernah bilang kamu AI.
+- Tulis aksi dan suasana di antara tanda bintang, contoh: *Luna menunduk sambil memainkan ujung jubahnya*
+- Jangan pernah menulis dialog atau aksi untuk karakter pengguna. Cukup respons kamu sendiri.
+- Balas 2-4 paragraf pendek, jangan terlalu panjang.
+`;
+
+    // Naskah karakter + nama pengguna terbaru.
+    // Dibuat ulang tiap kali kirim pesan, jadi ganti nama langsung berlaku.
+    function promptSistem() {
+      return CHARACTER + `
+IDENTITAS PENGGUNA:
+- Nama lawan bicaramu adalah "${namaUser}".
+- Panggil dia dengan nama itu secara natural (boleh nama depannya saja kalau namanya panjang). Jangan sebut namanya di setiap kalimat.
+`;
+    }
+
+    const GREETING = "*Pintu menara berderit pelan. Seorang gadis berjubah biru mengintip dari baliknya.* A-ah! Ada tamu? Maaf, menaranya lagi berantakan... kamu siapa?";
+
+    // ========== FUNGSI TAMPILAN ==========
+    function addMessage(text, who) {
+      const div = document.createElement("div");
+      div.className = "msg " + who;
+      div.textContent = text;
+      chatEl.appendChild(div);
+      chatEl.scrollTop = chatEl.scrollHeight;
+      return div;
+    }
+
+    // ========== POPUP & SISTEM LIMIT ==========
+    function tampilPopup(judul, isi) {
+      popupTitle.textContent = judul;
+      popupText.textContent = isi;
+      popupEl.classList.remove("hidden");
+    }
+
+    document.getElementById("popup-ok").addEventListener("click", () => {
+      popupEl.classList.add("hidden");
+    });
+
+    // Hitung waktu kuota harian reset.
+    // Google biasanya mereset kuota harian tengah malam waktu Pasifik (Los Angeles).
+    function waktuResetHarian() {
+      const now = new Date();
+      const pt = new Date(now.toLocaleString("en-US", { timeZone: "America/Los_Angeles" }));
+      const besok = new Date(pt);
+      besok.setHours(24, 0, 0, 0);
+      return Date.now() + (besok - pt);
+    }
+
+    // Kunci tombol kirim sampai waktu "until" (dalam milidetik)
+    function aktifkanKunci(until) {
+      locked = true;
+      sendBtn.disabled = true;
+      clearTimeout(unlockTimer);
+      unlockTimer = setTimeout(bukaKunci, Math.max(until - Date.now(), 0));
+    }
+
+    function bukaKunci() {
+      locked = false;
+      localStorage.removeItem("limit_until");
+      localStorage.removeItem("limit_type");
+      updateSendBtn();
+    }
+
+    // Simpan kuncinya di HP (biar tetap terkunci walau halaman di-refresh),
+    // kunci tombol, lalu munculkan popup
+    function kunciKarenaLimit(until, tipe) {
+      localStorage.setItem("limit_until", String(until));
+      localStorage.setItem("limit_type", tipe);
+      aktifkanKunci(until);
+      tampilPopupLimit(until, tipe);
+    }
+
+    function tampilPopupLimit(until, tipe) {
+      if (tipe === "harian") {
+        tampilPopup("Limit harian habis", "Limit harian kamu sudah habis. Kembali lagi besok ya!");
+      } else {
+        const detik = Math.max(Math.ceil((until - Date.now()) / 1000), 1);
+        tampilPopup("Limit sementara tercapai", `Terlalu banyak pesan dalam waktu singkat. Tombol kirim aktif lagi sekitar ${detik} detik.`);
+      }
+    }
+
+    // ========== DATA BANYAK OBROLAN (sekarang terpisah per akun) ==========
+    // Tiap obrolan = { id, title, custom, updated, history: [...] }
+    // Disimpan di kunci "rp_chats:emailkamu", jadi tiap akun punya obrolan sendiri.
+    function kunciChats() { return "rp_chats:" + sesi; }
+    function kunciAktif() { return "rp_active:" + sesi; }
+
+    let chats = [];          // semua obrolan milik akun yang login
+    let activeId = null;     // id obrolan yang sedang dibuka
+    let editingId = null;    // id obrolan yang sedang diganti namanya
+    let menuId = null;       // id obrolan yang menu titik tiganya terbuka
+    let hapusArmed = false;  // sudah ketuk "Hapus" sekali atau belum
+
+    function idBaru() {
+      return Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    }
+
+    function buatChatKosong() {
+      return { id: idBaru(), title: "Chat baru", custom: false, updated: Date.now(), history: [] };
+    }
+
+    // Obrolan yang sedang dibuka
+    function aktif() {
+      return chats.find(c => c.id === activeId);
+    }
+
+    // Daftar obrolan, yang terbaru di atas
+    function urut() {
+      return [...chats].sort((a, b) => b.updated - a.updated);
+    }
+
+    // Judul otomatis diambil dari pesan pertama kamu
+    function judulDari(hist) {
+      const t = hist.find(x => x.role === "user")?.parts?.[0]?.text || "Chat baru";
+      return t.length > 28 ? t.slice(0, 28) + "…" : t;
+    }
+
+    function simpanSemua() {
+      if (!sesi) return;
+      try {
+        localStorage.setItem(kunciChats(), JSON.stringify(chats));
+        localStorage.setItem(kunciAktif(), activeId);
+      } catch (e) {
+        console.log("Gagal menyimpan:", e);
+      }
+    }
+
+    // Muat obrolan milik akun yang sedang login (kosong kalau belum login)
+    function muatSemua() {
+      chats = [];
+      activeId = null;
+      if (!sesi) return;
+
+      try {
+        const data = JSON.parse(localStorage.getItem(kunciChats()) || "null");
+        if (Array.isArray(data)) {
+          chats = data.filter(c => c && c.id && Array.isArray(c.history));
+        }
+      } catch (e) {
+        console.log("Data rusak, diabaikan:", e);
+        chats = [];
+      }
+
+      if (chats.length === 0) chats.push(buatChatKosong());
+
+      const tersimpan = localStorage.getItem(kunciAktif());
+      activeId = chats.some(c => c.id === tersimpan) ? tersimpan : urut()[0].id;
+    }
+
+    // Gambar ulang isi layar chat dari obrolan yang aktif
+    function renderChat() {
+      chatEl.innerHTML = "";
+      addMessage(GREETING, "ai");
+      if (!sesi) return;
+      aktif().history.forEach(item => {
+        const teks = item?.parts?.[0]?.text;
+        if (!teks) return;
+        addMessage(teks, item.role === "user" ? "user" : "ai");
+      });
+    }
+
+    // ========== STEP 6.5: AKUN (DAFTAR, LOGIN, KELUAR) ==========
+    function muatAkun() {
+      try {
+        const a = JSON.parse(localStorage.getItem(KUNCI_AKUN) || "[]");
+        akun = Array.isArray(a) ? a.filter(x => x && x.email && x.hash) : [];
+      } catch (e) {
+        akun = [];
+      }
+    }
+
+    function simpanAkun() {
+      try { localStorage.setItem(KUNCI_AKUN, JSON.stringify(akun)); } catch (e) { /* abaikan */ }
+    }
+
+    function akunAktif() {
+      return akun.find(a => a.email === sesi);
+    }
+
+    // Password TIDAK disimpan mentah, tapi diubah jadi "sidik jari" (hash) bersama garam acak (salt)
+    async function hashPw(pw, salt) {
+      const data = salt + ":" + pw;
+      if (window.crypto && crypto.subtle) {
+        const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(data));
+        return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, "0")).join("");
+      }
+      // Cadangan sederhana kalau browser tidak mendukung crypto.subtle
+      let h = 5381;
+      for (let i = 0; i < data.length; i++) h = (((h << 5) + h) + data.charCodeAt(i)) >>> 0;
+      return "f" + h.toString(16);
+    }
+
+    // Kalau ini akun PERTAMA, obrolan lama (dari sebelum ada login) dipindahkan ke akun itu
+    function pindahDataLama(email) {
+      try {
+        const c = localStorage.getItem("rp_chats");
+        const a = localStorage.getItem("rp_active");
+        if (c) { localStorage.setItem("rp_chats:" + email, c); localStorage.removeItem("rp_chats"); }
+        if (a) { localStorage.setItem("rp_active:" + email, a); localStorage.removeItem("rp_active"); }
+      } catch (e) { /* abaikan */ }
+    }
+
+    // Terapkan tampilan sesuai status login
+    function terapkanStatusLogin() {
+      const a = akunAktif();
+      namaUser = a ? a.name : "Tamu";
+      drawerEl.classList.toggle("logged-out", !sesi);
+      inputEl.placeholder = sesi ? "Chat with Luna..." : "Login dulu untuk chat...";
+      tampilNama();
+      updateSendBtn();
+    }
+
+    function masuk(email) {
+      sesi = email;
+      try { localStorage.setItem(KUNCI_SESI, email); } catch (e) { /* abaikan */ }
+      muatSemua();
+      renderChat();
+      renderList();
+      terapkanStatusLogin();
+      tutupAuth();
+      tutupDrawer();
+    }
+
+    function keluar() {
+      if (busy) {
+        tampilPopup("Tunggu sebentar", "Luna masih membalas. Tunggu sampai selesai dulu ya.");
+        return;
+      }
+      sesi = null;
+      try { localStorage.removeItem(KUNCI_SESI); } catch (e) { /* abaikan */ }
+      chats = [];
+      activeId = null;
+      editingId = null;
+      inputEl.value = "";
+      tutupDrawer();
+      renderChat();
+      renderList();
+      terapkanStatusLogin();
+    }
+
+    // ----- Layar login / daftar -----
+    let authMode = "login";   // "login" atau "register"
+    let authBusy = false;
+
+    function setMode(mode) {
+      authMode = mode;
+      const daftar = mode === "register";
+      authTitle.textContent = daftar ? "Buat Akun" : "Welcome Back";
+      authSub.textContent = daftar ? "Daftar dulu biar obrolanmu tersimpan." : "Masuk buat ngelanjutin obrolanmu.";
+      authSubmit.textContent = daftar ? "Daftar →" : "Login →";
+      fName.classList.toggle("hidden", !daftar);
+      authPw.autocomplete = daftar ? "new-password" : "current-password";
+      switchText.textContent = daftar ? "Sudah punya akun?" : "Belum punya akun?";
+      switchBtn.textContent = daftar ? "Login" : "Daftar sekarang";
+      tampilAuthError("");
+    }
+
+    function tampilAuthError(teks) {
+      authError.textContent = teks;
+    }
+
+    function bukaAuth(mode) {
+      tutupDrawer();
+      authEmail.value = "";
+      authPw.value = "";
+      authPw.type = "password";
+      // Kalau dulu pernah ganti nama di versi lama, jadikan isian awal
+      authName.value = localStorage.getItem("user_name") || "";
+      setMode(mode || "login");
+      authEl.classList.remove("hidden");
+    }
+
+    function tutupAuth() {
+      authEl.classList.add("hidden");
+    }
+
+    async function kirimAuth() {
+      if (authBusy) return;
+      const email = authEmail.value.trim().toLowerCase();
+      const pw = authPw.value;
+      tampilAuthError("");
+
+      if (!/^\S+@\S+\.\S+$/.test(email)) return tampilAuthError("Format email belum benar");
+      if (!pw) return tampilAuthError("Password belum diisi");
+
+      authBusy = true;
+      authSubmit.disabled = true;
+      try {
+        if (authMode === "register") {
+          const nama = authName.value.trim().replace(/\s+/g, " ").slice(0, 30);
+          if (!nama) return tampilAuthError("Nama tidak boleh kosong");
+          if (pw.length < 6) return tampilAuthError("Password minimal 6 karakter");
+          if (akun.some(a => a.email === email)) return tampilAuthError("Email ini sudah terdaftar. Coba login.");
+
+          const salt = idBaru();
+          const hash = await hashPw(pw, salt);
+          const pertama = akun.length === 0;
+          akun.push({ email, name: nama, salt, hash });
+          simpanAkun();
+          if (pertama) pindahDataLama(email);
+          masuk(email);
+        } else {
+          const a = akun.find(x => x.email === email);
+          const h = a ? await hashPw(pw, a.salt) : null;
+          if (!a || h !== a.hash) return tampilAuthError("Email atau password salah");
+          masuk(email);
+        }
+      } finally {
+        authBusy = false;
+        authSubmit.disabled = false;
+      }
+    }
+
+    authSubmit.addEventListener("click", kirimAuth);
+    [authName, authEmail, authPw].forEach(el => {
+      el.addEventListener("keydown", e => { if (e.key === "Enter") kirimAuth(); });
+    });
+    switchBtn.addEventListener("click", () => setMode(authMode === "login" ? "register" : "login"));
+    document.getElementById("auth-close").addEventListener("click", tutupAuth);
+    document.getElementById("eye").addEventListener("click", () => {
+      authPw.type = authPw.type === "password" ? "text" : "password";
+    });
+    document.getElementById("google-btn").addEventListener("click", () => {
+      tampilPopup("Belum tersedia", "Login Google butuh Firebase dan web yang sudah di-hosting. Untuk sekarang pakai email dan password dulu ya.");
+    });
+    document.getElementById("login-open").addEventListener("click", () => bukaAuth("login"));
+    document.getElementById("logout").addEventListener("click", keluar);
+
+    // Kalau belum login dan kolom ketik disentuh, arahkan ke layar login
+    inputEl.addEventListener("focus", () => {
+      if (!sesi) { inputEl.blur(); bukaAuth("login"); }
+    });
+
+    // ========== PROFIL PENGGUNA ==========
+    // Tampilkan nama + inisial + email di kartu akun
+    function tampilNama() {
+      document.getElementById("acc-name").textContent = namaUser;
+      document.getElementById("acc-avatar").textContent = namaUser.charAt(0).toUpperCase() || "?";
+      document.getElementById("acc-email").textContent = sesi || "";
+    }
+
+    let statusTimer = null;
+    function tampilStatus(teks, error) {
+      nameStatus.textContent = teks;
+      nameStatus.classList.toggle("error", !!error);
+      clearTimeout(statusTimer);
+      statusTimer = setTimeout(() => { nameStatus.textContent = ""; }, 2500);
+    }
+
+    function simpanNama() {
+      const a = akunAktif();
+      if (!a) return;
+      // rapikan spasi berlebih, batasi 30 huruf
+      const baru = nameInput.value.trim().replace(/\s+/g, " ").slice(0, 30);
+      if (!baru) {
+        tampilStatus("Nama tidak boleh kosong", true);
+        return;
+      }
+      a.name = baru;       // nama tersimpan di akun
+      simpanAkun();
+      namaUser = baru;
+      nameInput.value = namaUser;
+      tampilNama();
+      tampilStatus("Tersimpan");
+    }
+
+    // Buka/tutup panel profil
+    function togglePanel() {
+      const buka = profileEl.classList.toggle("open");
+      accountEl.classList.toggle("open", buka);
+      if (buka) nameInput.value = namaUser;
+    }
+
+    function tutupPanel() {
+      profileEl.classList.remove("open");
+      accountEl.classList.remove("open");
+    }
+
+    accountEl.addEventListener("click", togglePanel);
+    saveNameBtn.addEventListener("click", simpanNama);
+    nameInput.addEventListener("keydown", e => {
+      if (e.key === "Enter") simpanNama();
+    });
+
+    // ========== MENU SAMPING ==========
+    function bukaDrawer() {
+      renderList();
+      drawerEl.classList.add("open");
+      overlayEl.classList.add("open");
+    }
+
+    function tutupDrawer() {
+      tutupMenu();
+      tutupPanel();   // panel profil ikut menutup
+      if (editingId) { editingId = null; renderList(); }
+      drawerEl.classList.remove("open");
+      overlayEl.classList.remove("open");
+    }
+
+    menuBtn.addEventListener("click", bukaDrawer);
+    overlayEl.addEventListener("click", tutupDrawer);
+    document.getElementById("drawer-close").addEventListener("click", tutupDrawer);
+
+    // Gambar daftar obrolan di menu
+    function renderList() {
+      countEl.textContent = chats.length;
+      listEl.innerHTML = "";
+
+      if (!sesi) {
+        countEl.textContent = "";
+        const kosong = document.createElement("div");
+        kosong.className = "empty";
+        kosong.textContent = "Belum ada obrolan";
+        listEl.appendChild(kosong);
+        return;
+      }
+
+      urut().forEach(c => {
+        const row = document.createElement("div");
+        row.className = "item" + (c.id === activeId ? " active" : "");
+        row.dataset.id = c.id;
+
+        if (c.id === editingId) {
+          // Mode edit: judul berubah jadi kolom ketik
+          const inp = document.createElement("input");
+          inp.className = "rename";
+          inp.value = c.title;
+          inp.maxLength = 40;
+          inp.addEventListener("keydown", e => {
+            if (e.key === "Enter") selesaiEdit(c.id, true, inp.value);
+            if (e.key === "Escape") selesaiEdit(c.id, false);
+          });
+          inp.addEventListener("blur", () => selesaiEdit(c.id, true, inp.value));
+          row.appendChild(inp);
+        } else {
+          const t = document.createElement("span");
+          t.className = "title";
+          t.textContent = c.title;   // textContent = aman dari kode nyasar
+          row.appendChild(t);
+
+          const b = document.createElement("button");
+          b.className = "dots";
+          b.textContent = "⋮";
+          b.setAttribute("aria-label", "Opsi");
+          row.appendChild(b);
+        }
+        listEl.appendChild(row);
+      });
+    }
+
+    // Satu pendengar klik untuk seluruh daftar (namanya event delegation),
+    // lalu dicek bagian mana yang diketuk
+    listEl.addEventListener("click", e => {
+      const row = e.target.closest(".item");
+      if (!row) return;
+      const id = row.dataset.id;
+
+      if (e.target.closest(".rename")) return;
+
+      const dots = e.target.closest(".dots");
+      if (dots) {
+        if (menuId === id) tutupMenu();
+        else bukaMenu(id, dots);
+        return;
+      }
+
+      gantiChat(id);   // ketuk baris = buka obrolan itu
+    });
+
+    // ----- Menu kecil Edit / Hapus -----
+    function bukaMenu(id, tombol) {
+      menuId = id;
+      hapusArmed = false;
+      menuHapus.textContent = "Hapus";
+      menuHapus.classList.remove("armed");
+      menuEl.classList.remove("hidden");
+
+      // Posisi menu tepat di bawah titik tiga (atau di atasnya kalau mepet bawah layar)
+      const r = tombol.getBoundingClientRect();
+      const h = menuEl.offsetHeight;
+      let top = r.bottom + 4;
+      if (top + h > window.innerHeight - 8) top = r.top - h - 4;
+      menuEl.style.top = top + "px";
+      menuEl.style.right = (window.innerWidth - r.right) + "px";
+    }
+
+    function tutupMenu() {
+      menuId = null;
+      hapusArmed = false;
+      menuEl.classList.add("hidden");
+    }
+
+    // Ketuk di luar menu = menu tertutup
+    document.addEventListener("click", e => {
+      if (menuId && !e.target.closest("#menu, .dots")) tutupMenu();
+    });
+
+    // ----- EDIT (ganti nama obrolan) -----
+    menuEdit.addEventListener("click", () => {
+      const id = menuId;
+      tutupMenu();
+      editingId = id;
+      renderList();
+      const inp = listEl.querySelector(".rename");
+      if (inp) { inp.focus(); inp.select(); }
+    });
+
+    function selesaiEdit(id, simpan, nilai) {
+      if (editingId !== id) return;   // penjaga biar nggak terpanggil dua kali
+      editingId = null;
+      if (simpan) {
+        const judul = (nilai || "").trim();
+        const chat = chats.find(c => c.id === id);
+        if (judul && chat) {
+          chat.title = judul.slice(0, 40);
+          chat.custom = true;   // sudah diganti manual, jangan ditimpa judul otomatis
+          simpanSemua();
+        }
+      }
+      renderList();
+    }
+
+    // ----- HAPUS (ketuk 2 kali) -----
+    menuHapus.addEventListener("click", () => {
+      const id = menuId;
+
+      if (busy && id === activeId) {
+        tutupMenu();
+        tampilPopup("Tunggu sebentar", "Luna masih membalas. Tunggu sampai selesai dulu ya.");
+        return;
+      }
+
+      if (!hapusArmed) {
+        hapusArmed = true;
+        menuHapus.textContent = "Yakin? Ketuk lagi";
+        menuHapus.classList.add("armed");
+        return;
+      }
+
+      tutupMenu();
+      hapusChatById(id);
+    });
+
+    function hapusChatById(id) {
+      chats = chats.filter(c => c.id !== id);
+      if (chats.length === 0) chats.push(buatChatKosong());
+
+      if (id === activeId) {
+        activeId = urut()[0].id;   // pindah ke obrolan terbaru yang tersisa
+        renderChat();
+      }
+      simpanSemua();
+      renderList();
+    }
+
+    // ----- GANTI OBROLAN & CHAT BARU -----
+    function gantiChat(id) {
+      if (busy) {
+        tampilPopup("Tunggu sebentar", "Luna masih membalas. Tunggu sampai selesai dulu ya.");
+        return;
+      }
+      if (id !== activeId) {
+        activeId = id;
+        simpanSemua();
+        renderChat();
+      }
+      tutupDrawer();
+    }
+
+    document.getElementById("new-chat").addEventListener("click", () => {
+      if (!sesi) {          // belum login: arahkan ke layar login
+        bukaAuth("login");
+        return;
+      }
+      if (busy) {
+        tampilPopup("Tunggu sebentar", "Luna masih membalas. Tunggu sampai selesai dulu ya.");
+        return;
+      }
+      // Kalau obrolan yang sekarang masih kosong, nggak usah bikin lagi
+      if (aktif().history.length > 0) {
+        const baru = buatChatKosong();
+        chats.push(baru);
+        activeId = baru.id;
+        simpanSemua();
+        renderChat();
+      }
+      tutupDrawer();
+    });
+
+    // Tombol Pengaturan sengaja belum diberi fungsi apa-apa.
+    // Nanti tinggal tambahkan: document.getElementById("settings-btn").addEventListener("click", ...)
+
+    // ========== FUNGSI KIRIM KE GEMINI (dengan cadangan model) ==========
+    // Tanpa loop for/while: kalau model ke-i gagal, fungsi ini
+    // memanggil dirinya sendiri untuk model ke-(i+1).
+    // Objek "s" mencatat apa yang terjadi di tiap model.
+    async function callGemini(i = 0, s = { n429: 0, nHarian: 0, nLain: 0, retry: 0, pesan: "Terjadi error" }) {
+      if (i >= MODELS.length) {
+        // Semua model sudah dicoba dan gagal
+        const err = new Error(s.pesan);
+        // Kalau semua kegagalannya karena kuota (429), tandai sebagai limit
+        if (s.n429 > 0 && s.nLain === 0) {
+          err.limit = (s.nHarian === s.n429) ? "harian" : "menit";
+          err.retry = s.retry;
+        }
+        throw err;
+      }
+
+      const model = MODELS[i];
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+      const res = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-goog-api-key": apiKey
+        },
+        body: JSON.stringify({
+          system_instruction: { parts: [{ text: promptSistem() }] },   // karakter + nama pengguna
+          contents: aktif().history.slice(-19),   // kirim 19 pesan terakhir dari obrolan aktif
+          generationConfig: { temperature: 1.0 }
+        })
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        console.log("Model yang dipakai:", model);
+        return data;                      // berhasil, selesai
+      }
+
+      const pesan = `[${model}] ` + (data.error?.message || "Terjadi error");
+
+      // Error yang bukan soal model (misal key salah): berhenti di sini
+      if (!BOLEH_LANJUT.includes(res.status)) throw new Error(pesan);
+
+      // Catat jenis kegagalannya
+      if (res.status === 429) {
+        s.n429++;
+        // Kuota harian biasanya ditandai "PerDay" di detail error
+        if (JSON.stringify(data).includes("PerDay")) s.nHarian++;
+        // Ambil "Please retry in 56.7s" dari pesan error
+        const m = /retry in ([\d.]+)s/i.exec(data.error?.message || "");
+        if (m) s.retry = Math.max(s.retry, parseFloat(m[1]));
+      } else if (res.status !== 404) {
+        s.nLain++;   // server sibuk/error (bukan kuota, bukan model tidak ada)
+      }
+      s.pesan = pesan;
+
+      // Coba model berikutnya
+      return callGemini(i + 1, s);
+    }
+
+    // ========== FUNGSI KIRIM PESAN ==========
+    async function sendMessage() {
+      if (busy || locked || !sesi) return;
+      const text = inputEl.value.trim();
+      if (!text) return;
+
+      busy = true;
+      sendBtn.disabled = true;
+      inputEl.value = "";
+
+      const chat = aktif();                      // obrolan yang sedang dibuka
+      const pertama = chat.history.length === 0; // apakah ini pesan pertama?
+
+      const userBubble = addMessage(text, "user");
+      chat.history.push({ role: "user", parts: [{ text }] });
+
+      const loading = addMessage("...", "ai");
+
+      try {
+        const data = await callGemini();
+        const reply = data.candidates?.[0]?.content?.parts?.[0]?.text
+                      || "(jawaban kosong atau diblokir)";
+        loading.textContent = reply;
+        chat.history.push({ role: "model", parts: [{ text: reply }] });
+
+        // Judul otomatis dari pesan pertama (kecuali sudah diganti manual)
+        if (pertama && !chat.custom) chat.title = judulDari(chat.history);
+        chat.updated = Date.now();
+        simpanSemua();
+        renderList();
+
+      } catch (err) {
+        chat.history.pop(); // buang pesan user yang gagal
+
+        if (err.limit) {
+          // LIMIT HABIS: jangan tampilkan error di chat
+          loading.remove();
+          userBubble.remove();
+          inputEl.value = text;   // kembalikan teks kamu biar nggak hilang
+
+          const until = err.limit === "harian"
+            ? waktuResetHarian()
+            : Date.now() + (err.retry > 0 ? err.retry : 60) * 1000;
+          kunciKarenaLimit(until, err.limit);
+        } else {
+          // Error lain (key salah, server sibuk, dll) tetap tampil di chat
+          loading.textContent = "Error: " + err.message;
+        }
+      } finally {
+        busy = false;
+        updateSendBtn();
+      }
+    }
+
+    // ========== TOMBOL & KEYBOARD ==========
+    sendBtn.addEventListener("click", sendMessage);
+    inputEl.addEventListener("input", updateSendBtn);   // cek ulang tiap kali isi kolom berubah
+    inputEl.addEventListener("keydown", e => {
+      if (e.key === "Enter") sendMessage();
+    });
+
+    // ========== SAAT HALAMAN DIBUKA ==========
+    // 1) Muat akun, lalu cek siapa yang sedang login
+    muatAkun();
+    try { sesi = localStorage.getItem(KUNCI_SESI); } catch (e) { sesi = null; }
+    if (!akun.some(a => a.email === sesi)) sesi = null;   // sesi basi/akun sudah tidak ada
+
+    // 2) Muat obrolan milik akun itu (kosong kalau belum login)
+    muatSemua();
+    renderChat();
+    renderList();
+    terapkanStatusLogin();
+
+    // 3) Cek kunci limit: kalau tadi terkunci dan belum waktunya buka, kunci lagi
+    const limitUntil = Number(localStorage.getItem("limit_until"));
+    const limitType = localStorage.getItem("limit_type");
+    if (limitUntil > Date.now()) {
+      aktifkanKunci(limitUntil);
+      tampilPopupLimit(limitUntil, limitType);
+    } else if (limitUntil) {
+      bukaKunci();
+    }
+
+    // 4) Sesuaikan tombol kirim
+    updateSendBtn();
+  </script>
+</body>
+</html>
