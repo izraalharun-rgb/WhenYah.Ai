@@ -607,6 +607,72 @@
       box-shadow: var(--shadow-lg); animation: naik 0.3s ease-out backwards;
     }
 
+    /* ========== LEMBAR INFORMASI (Yang Baru, Saran, Tentang, FAQ, Privasi) ========== */
+    #info { position: fixed; inset: 0; z-index: 9; }
+    #info-back { position: absolute; inset: 0; background: var(--scrim); animation: memudar 0.2s ease-out; }
+    #info-sheet {
+      position: absolute; left: 0; right: 0; bottom: 0; margin: 0 auto;
+      width: 100%; max-width: 520px; max-height: 84dvh;
+      display: flex; flex-direction: column;
+      padding: 10px 20px calc(20px + env(safe-area-inset-bottom, 0px));
+      background: var(--surface); border-radius: 28px 28px 0 0; box-shadow: var(--shadow-lg);
+      animation: sheetNaik 0.32s cubic-bezier(0.2, 0.8, 0.2, 1);
+    }
+    @keyframes sheetNaik { from { transform: translateY(100%); } }
+    @keyframes sheetTurun { to { transform: translateY(100%); } }
+    @keyframes memudarKeluar { to { opacity: 0; } }
+    #info.menutup #info-sheet { animation: sheetTurun 0.22s ease-in forwards; }
+    #info.menutup #info-back { animation: memudarKeluar 0.22s ease-in forwards; }
+    .info-grip { width: 40px; height: 4px; margin: 0 auto 12px; border-radius: 999px; background: var(--surface2); }
+    .info-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 4px; }
+    .info-head h3 { margin: 0; font-size: 20px; letter-spacing: -0.3px; }
+    #info-close {
+      width: 34px; height: 34px; border-radius: 50%;
+      border: none; background: var(--surface2); color: var(--text); font-size: 15px;
+    }
+    #info-body { overflow-y: auto; min-height: 0; padding-bottom: 4px; }
+    .info-p { margin: 10px 0 0; font-size: 14px; line-height: 1.6; color: var(--text-soft); }
+    .info-sub { margin: 18px 0 2px; font-size: 14.5px; color: var(--text); }
+    .info-list { margin: 8px 0 0; padding-left: 20px; font-size: 14px; line-height: 1.6; color: var(--text-soft); }
+    .info-list li { margin-bottom: 6px; }
+    .info-row {
+      display: flex; justify-content: space-between; gap: 12px;
+      padding: 11px 0; border-bottom: 1px solid var(--line); font-size: 14px;
+    }
+    .info-row span:first-child { color: var(--text-soft); }
+    .info-row span:last-child { font-weight: 700; text-align: right; }
+    .info-btn {
+      width: 100%; margin-top: 16px; padding: 14px; border: none; border-radius: 999px;
+      background: var(--btn); color: var(--btn-text); font-size: 15px; font-weight: 700;
+    }
+    #info-body .seg { margin-top: 14px; }
+    #info-body .fld { margin-top: 12px; }
+
+    .faq { border-bottom: 1px solid var(--line); }
+    .faq-q {
+      display: flex; align-items: center; justify-content: space-between; gap: 12px;
+      width: 100%; padding: 14px 2px; border: none; background: none;
+      color: var(--text); font-size: 14.5px; font-weight: 700; text-align: left;
+    }
+    .faq-q:active:not(:disabled) { transform: scale(0.99); }
+    .faq-ic { display: flex; flex-shrink: 0; color: var(--text-soft); transition: transform 0.28s cubic-bezier(0.2, 0.8, 0.2, 1); }
+    .faq.open .faq-ic { transform: rotate(180deg); }
+    .faq-a { display: grid; grid-template-rows: 0fr; transition: grid-template-rows 0.28s cubic-bezier(0.2, 0.8, 0.2, 1); }
+    .faq.open .faq-a { grid-template-rows: 1fr; }
+    .faq-a > div { min-height: 0; overflow: hidden; }
+    .faq-a p { margin: 0; padding: 0 2px 14px; font-size: 14px; line-height: 1.6; color: var(--text-soft); }
+
+    /* Tautan kecil di menu samping */
+    .info-links {
+      display: flex; flex-wrap: wrap; justify-content: center; gap: 2px 14px; padding: 8px 0 0;
+    }
+    .info-links button {
+      border: none; background: none; padding: 5px 2px;
+      color: var(--text-soft); font-size: 12px; font-weight: 600;
+    }
+    button.guest-link { width: 100%; border: none; background: none; }
+    .guest-mini button { border: none; background: none; padding: 2px; color: inherit; font: inherit; }
+
     /* ========== ANIMASI ========== */
     /* Efek sentuhan: tombol dan saran pesan sedikit mengecil saat ditekan */
     button:active:not(:disabled) { transform: scale(0.94); }
@@ -825,6 +891,13 @@
 
     <!-- Tampil kalau SUDAH login -->
     <div id="userbox">
+      <div class="info-links">
+        <button type="button" data-info="baru">Yang Baru</button>
+        <button type="button" data-info="saran">Kritik &amp; Saran</button>
+        <button type="button" data-info="tentang">Tentang</button>
+        <button type="button" data-info="faq">FAQ</button>
+        <button type="button" data-info="privasi">Privasi</button>
+      </div>
       <div id="profile">
        <div class="profile-clip"><div class="profile-in">
         <div class="usage">
@@ -879,9 +952,11 @@
         </svg>
         Login
       </button>
-      <div class="guest-link">Yang Baru</div>
-      <div class="guest-link">Kritik &amp; Saran</div>
-      <div class="guest-mini"><span>Tentang</span>•<span>FAQ</span>•<span>Privasi</span></div>
+      <button type="button" class="guest-link" data-info="baru">Yang Baru</button>
+      <button type="button" class="guest-link" data-info="saran">Kritik &amp; Saran</button>
+      <div class="guest-mini">
+        <button type="button" data-info="tentang">Tentang</button>•<button type="button" data-info="faq">FAQ</button>•<button type="button" data-info="privasi">Privasi</button>
+      </div>
     </div>
   </div>
 
@@ -1009,6 +1084,19 @@
         <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>
       </svg>
     </button>
+  </div>
+
+  <!-- Lembar informasi -->
+  <div id="info" class="hidden" role="dialog" aria-modal="true" aria-labelledby="info-title">
+    <div id="info-back"></div>
+    <div id="info-sheet">
+      <div class="info-grip"></div>
+      <div class="info-head">
+        <h3 id="info-title"></h3>
+        <button type="button" id="info-close" aria-label="Tutup">✕</button>
+      </div>
+      <div id="info-body"></div>
+    </div>
   </div>
 
   <!-- Pesan singkat -->
@@ -1876,6 +1964,215 @@
     }
     document.addEventListener("visibilitychange", () => {
       if (!document.hidden) { segarkanPakai(); jadwalkanResetPakai(); }
+    });
+
+    // ========== HALAMAN INFORMASI ==========
+    // Isi emailmu di sini kalau Kritik & Saran mau masuk ke email (kosong = lewat GitHub, terlihat publik)
+    const KONTAK_EMAIL = "";
+    const REPO_ISSUES = "https://github.com/izraalharun-rgb/WhenYah.Ai/issues/new";
+
+    const infoEl = document.getElementById("info");
+    const infoTitle = document.getElementById("info-title");
+    const infoBody = document.getElementById("info-body");
+    let infoTimer = null;
+
+    function buatEl(tag, kelas, teks) {
+      const e = document.createElement(tag);
+      if (kelas) e.className = kelas;
+      if (teks !== undefined) e.textContent = teks;
+      return e;
+    }
+    const para = t => buatEl("p", "info-p", t);
+    const sub = t => buatEl("h4", "info-sub", t);
+    function daftar(item) {
+      const ul = buatEl("ul", "info-list");
+      item.forEach(t => ul.appendChild(buatEl("li", "", t)));
+      return ul;
+    }
+    function baris(k, v) {
+      const r = buatEl("div", "info-row");
+      r.append(buatEl("span", "", k), buatEl("span", "", v));
+      return r;
+    }
+
+    // Pertanyaan yang sering muncul
+    const FAQ = [
+      ["Bagaimana cara membuat karakter sendiri?",
+       "Buka menu ☰, ketuk Pengaturan, lalu + Baru. Isi nama karakter, jenis kelamin, foto, dan deskripsinya, lalu tekan Simpan. Persona yang disimpan langsung aktif untuk chat baru."],
+      ["Kenapa nama AI-nya Chatbot?",
+       "Itu persona bawaan yang dipakai selama kamu belum membuat persona sendiri. Buat persona baru di Pengaturan untuk menggantinya."],
+      ["Bagaimana cara menulis aksi?",
+       "Tulis aksi atau suasana di antara tanda bintang, misalnya *tersenyum tipis*. Di layar, bagian itu tampil miring."],
+      ["Kalau aku ubah persona, obrolan lama ikut berubah?",
+       "Tidak. Tiap obrolan mengunci persona-nya saat pesan pertama dikirim. Untuk memakai persona lain, mulai chat baru."],
+      ["Apa itu jatah harian?",
+       "Kamu bisa mengirim sampai " + BATAS_HARIAN + " pesan per hari. Hanya pesan yang berhasil dibalas yang dihitung, dan jatahnya dibuka lagi pukul 00.00 WIB. Bar sisa jatahnya ada di panel profil."],
+      ["Kenapa aku diminta API key Gemini?",
+       "Balasan AI dibuat oleh model Gemini dari Google. WhenYah.Ai memakai API key milikmu sendiri, yang disimpan di browser HP-mu. Key gratis bisa dibuat di aistudio.google.com."],
+      ["Kenapa muncul \"Limit sementara tercapai\"?",
+       "Itu batas kuota gratis dari Google, per menit atau per hari, dan berbeda dari jatah harian aplikasi. Tunggu sebentar, atau kembali lagi besok kalau kuota hariannya habis."],
+      ["Kenapa balasannya kosong atau diblokir?",
+       "Google menerapkan filter keamanan pada balasan. Coba ubah arah ceritanya. Balasan seperti itu tidak dihitung ke jatah hariannya."],
+      ["Obrolanku hilang, kenapa?",
+       "Data tersimpan di browser HP-mu. Kalau data situs dihapus, atau kamu membuka lewat browser atau HP lain, datanya tidak ikut. Tiap browser punya data sendiri."],
+      ["Bagaimana mengganti tema terang atau gelap?",
+       "Ketuk tombol matahari atau bulan di bar atas. Pilihanmu diingat di HP."]
+    ];
+
+    function kirimSaran(jenis, teks) {
+      const judul = "[" + jenis + "] WhenYah.Ai " + VERSI_APP;
+      const isi = teks + "\n\n---\nVersi: " + VERSI_APP;
+      if (KONTAK_EMAIL) {
+        location.href = "mailto:" + KONTAK_EMAIL + "?subject=" + encodeURIComponent(judul) + "&body=" + encodeURIComponent(isi);
+      } else {
+        window.open(REPO_ISSUES + "?title=" + encodeURIComponent(judul) + "&body=" + encodeURIComponent(isi), "_blank", "noopener");
+      }
+    }
+
+    const HALAMAN_INFO = {
+      baru: {
+        judul: "Yang Baru di " + VERSI_APP,
+        isi(b) {
+          b.append(
+            sub("Rilis pertama"),
+            daftar([
+              "Persona AI: buat karakter sendiri lengkap dengan foto persegi, jenis kelamin, kepribadian, dan gaya bahasa",
+              "Alur Percakapan: atur skenario, pesan pembuka, panjang balasan, dan kreativitas",
+              "Banyak obrolan per akun, bisa diganti nama atau dihapus",
+              "Login dan daftar dengan email",
+              "Tema terang dan gelap",
+              "Balasan diketik perlahan, dengan animasi yang halus",
+              "Jatah " + BATAS_HARIAN + " pesan per hari, dibuka lagi pukul 00.00 WIB",
+              "Otomatis pindah ke model lain kalau satu model sibuk atau kuotanya habis"
+            ])
+          );
+        }
+      },
+
+      saran: {
+        judul: "Kritik & Saran",
+        isi(b) {
+          const seg = buatEl("div", "seg");
+          ["Kritik", "Saran", "Bug"].forEach((j, i) => {
+            const t = buatEl("button", i === 1 ? "on" : "", j);
+            t.type = "button";
+            t.dataset.v = j;
+            seg.appendChild(t);
+          });
+          seg.addEventListener("click", e => {
+            const t = e.target.closest("button[data-v]");
+            if (!t) return;
+            seg.querySelectorAll("button").forEach(x => x.classList.toggle("on", x === t));
+          });
+
+          const ta = buatEl("textarea", "fld");
+          ta.rows = 5;
+          ta.maxLength = 1000;
+          ta.placeholder = "Tulis kritik atau sarannya di sini...";
+
+          const catatan = buatEl("p", "sub", KONTAK_EMAIL
+            ? "Setelah ditekan, aplikasi emailmu terbuka dengan pesan yang sudah terisi."
+            : "Pesan dikirim lewat GitHub dan bisa dilihat publik, jadi jangan menulis data pribadi.");
+
+          const kirim = buatEl("button", "info-btn", "Kirim");
+          kirim.type = "button";
+          kirim.addEventListener("click", () => {
+            const teks = ta.value.trim();
+            if (!teks) { tampilToast("Tulis dulu kritik atau sarannya"); return; }
+            const aktifSeg = seg.querySelector("button.on");
+            kirimSaran(aktifSeg ? aktifSeg.dataset.v : "Saran", teks);
+            tutupInfo();
+            tampilToast("Terima kasih atas masukanmu!");
+          });
+
+          b.append(para("Ada yang kurang pas, atau punya ide? Tulis di sini."), seg, ta, catatan, kirim);
+        }
+      },
+
+      tentang: {
+        judul: "Tentang",
+        isi(b) {
+          b.append(
+            para("WhenYah.Ai adalah tempat ngobrol roleplay dengan karakter buatanmu sendiri. Kamu yang menentukan nama, kepribadian, dan gaya bicaranya, lalu AI yang memerankannya."),
+            baris("Versi", VERSI_APP),
+            baris("Mesin AI", "Google Gemini"),
+            baris("Penyimpanan", "Di HP-mu (browser)"),
+            para("AI bisa membuat kesalahan. Jangan jadikan balasannya satu-satunya acuan untuk hal penting.")
+          );
+        }
+      },
+
+      faq: {
+        judul: "FAQ",
+        isi(b) {
+          FAQ.forEach(([tanya, jawab]) => {
+            const item = buatEl("div", "faq");
+
+            const q = buatEl("button", "faq-q");
+            q.type = "button";
+            const ic = buatEl("span", "faq-ic");
+            ic.innerHTML = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>';
+            q.append(buatEl("span", "", tanya), ic);
+            q.addEventListener("click", () => item.classList.toggle("open"));
+
+            const a = buatEl("div", "faq-a");
+            const dalam = buatEl("div");
+            dalam.appendChild(buatEl("p", "", jawab));
+            a.appendChild(dalam);
+
+            item.append(q, a);
+            b.appendChild(item);
+          });
+        }
+      },
+
+      privasi: {
+        judul: "Privasi",
+        isi(b) {
+          b.append(
+            sub("Data tersimpan di HP-mu"),
+            para("Akun, persona (termasuk foto), obrolan, hitungan pemakaian harian, pilihan tema, dan API key tersimpan di penyimpanan browser HP-mu. WhenYah.Ai tidak punya server sendiri yang menyimpan data itu. Password tidak disimpan apa adanya, tapi diacak (hash) dulu."),
+            sub("Yang dikirim ke Google"),
+            para("Supaya AI bisa membalas, isi pesanmu, sebagian riwayat obrolan, deskripsi persona, dan namamu dikirim ke Gemini API milik Google memakai API key-mu. Cara Google memproses data itu mengikuti ketentuan layanan Gemini API yang berlaku untuk key-mu, dan bisa berbeda antara paket gratis dan berbayar. Sebaiknya jangan menulis data pribadi yang sensitif di chat."),
+            sub("Tanpa pelacak"),
+            para("Kode WhenYah.Ai tidak memasang analitik atau iklan."),
+            sub("Kritik & Saran"),
+            para(KONTAK_EMAIL
+              ? "Dikirim lewat aplikasi emailmu ke pengelola."
+              : "Dikirim lewat GitHub dan bisa dilihat publik."),
+            sub("Menghapus data"),
+            para("Hapus obrolan dan persona lewat menu di aplikasi. Untuk menghapus semuanya, hapus data situs ini di pengaturan browser. Keluar dari akun tidak menghapus data.")
+          );
+        }
+      }
+    };
+
+    function bukaInfo(nama) {
+      const h = HALAMAN_INFO[nama];
+      if (!h) return;
+      clearTimeout(infoTimer);
+      infoTitle.textContent = h.judul;
+      infoBody.textContent = "";
+      h.isi(infoBody);
+      infoBody.scrollTop = 0;
+      infoEl.classList.remove("hidden", "menutup");
+    }
+
+    function tutupInfo() {
+      if (infoEl.classList.contains("hidden")) return;
+      infoEl.classList.add("menutup");
+      clearTimeout(infoTimer);
+      infoTimer = setTimeout(() => {
+        infoEl.classList.add("hidden");
+        infoEl.classList.remove("menutup");
+      }, 220);
+    }
+
+    document.getElementById("info-close").addEventListener("click", tutupInfo);
+    document.getElementById("info-back").addEventListener("click", tutupInfo);
+    drawerEl.addEventListener("click", e => {
+      const t = e.target.closest("[data-info]");
+      if (t) bukaInfo(t.dataset.info);
     });
 
     // ========== PROFIL PENGGUNA ==========
