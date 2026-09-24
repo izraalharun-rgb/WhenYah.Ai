@@ -1394,26 +1394,8 @@
       document.head.appendChild(f);
     })();
 
-    // Ambil API key dari HP; kalau belum ada, minta sekali
-    let apiKey = localStorage.getItem("gemini_key");
-    if (!apiKey) {
-      apiKey = prompt("Tempel API key Gemini kamu:");
-      if (apiKey) localStorage.setItem("gemini_key", apiKey);
-    }
-
-    // Urutan = prioritas. Kalau yang pertama bermasalah, otomatis coba berikutnya.
-    const MODELS = [
-      "gemini-3.8-flash",
-      "gemini-3.5-flash",
-      "gemini-3.5-flash-lite",
-      "gemini-3.1-flash-lite",
-      "gemini-3.6-flash"
-    ];
-
-    // Kode error yang artinya "modelnya lagi bermasalah, coba model lain":
-    // 429 = kuota habis, 404 = model tidak ada,
-    // 500/503/504 = server Google error atau sibuk
-    const BOLEH_LANJUT = [429, 404, 500, 503, 504];
+    // Backend AI WhenYah.Ai (API key Gemini disimpan di Google Apps Script)
+    const API_URL = "https://script.google.com/macros/s/AKfycbyzc4M3XmZghLpdpcVGawjAwbQ9HNgOQbPD-YD_GjIAlxYX2Ll2aZpafqPvcLGSlI0W/exec";
 
     let busy = false;     // penanda: lagi nunggu balasan atau tidak
     let locked = false;   // penanda: lagi dikunci karena limit habis
@@ -2258,8 +2240,8 @@
        "Tidak. Tiap obrolan mengunci persona-nya saat pesan pertama dikirim. Untuk memakai persona lain, mulai chat baru."],
       ["Apa itu jatah harian?",
        "Kamu bisa mengirim sampai " + BATAS_HARIAN + " pesan per hari. Hanya pesan yang berhasil dibalas yang dihitung, dan jatahnya dibuka lagi pukul 00.00 WIB. Bar sisa jatahnya ada di panel profil."],
-      ["Kenapa aku diminta API key Gemini?",
-       "Balasan AI dibuat oleh model Gemini dari Google. WhenYah.Ai memakai API key milikmu sendiri, yang disimpan di browser HP-mu. Key gratis bisa dibuat di aistudio.google.com."],
+      ["Kenapa aku tidak diminta API key Gemini?",
+       "Balasan AI dibuat oleh model Gemini dari Google. API key Gemini dikelola oleh backend WhenYah.Ai, jadi kamu tidak perlu menempelkan API key di browser."],
       ["Apakah AI-nya dilatih sendiri?",
        "Dasarnya model Gemini dari Google, bukan model yang dilatih dari nol. Yang dirancang sendiri adalah sistem persona, aturan roleplay, dan alur percakapannya, sehingga karaktermu berperilaku sesuai deskripsi yang kamu tulis."],
       ["Kenapa muncul \"Limit sementara tercapai\"?",
@@ -2397,9 +2379,9 @@
         isi(b) {
           b.append(
             sub("Data tersimpan di HP-mu"),
-            para("Akun, persona (termasuk foto), obrolan, hitungan pemakaian harian, pilihan tema, dan API key tersimpan di penyimpanan browser HP-mu. WhenYah.Ai tidak punya server sendiri yang menyimpan data itu. Password tidak disimpan apa adanya, tapi diacak (hash) dulu."),
+            para("Akun, persona (termasuk foto), obrolan, hitungan pemakaian harian, dan pilihan tema tersimpan di penyimpanan browser HP-mu. API key Gemini tidak disimpan di browser. Password tidak disimpan apa adanya, tapi diacak (hash) dulu."),
             sub("Yang dikirim ke Google"),
-            para("Supaya AI bisa membalas, isi pesanmu, sebagian riwayat obrolan, deskripsi persona, dan namamu dikirim ke Gemini API milik Google memakai API key-mu. Cara Google memproses data itu mengikuti ketentuan layanan Gemini API yang berlaku untuk key-mu, dan bisa berbeda antara paket gratis dan berbayar. Sebaiknya jangan menulis data pribadi yang sensitif di chat."),
+            para("Supaya AI bisa membalas, isi pesanmu, sebagian riwayat obrolan, deskripsi persona, dan namamu dikirim ke backend WhenYah.Ai, lalu diteruskan ke Gemini API milik Google. API key Gemini digunakan oleh backend, bukan oleh browser. Cara Google memproses data mengikuti ketentuan layanan Gemini API yang berlaku. Sebaiknya jangan menulis data pribadi yang sensitif di chat."),
             sub("Tanpa pelacak"),
             para("Kode WhenYah.Ai tidak memasang analitik atau iklan."),
             sub("Kritik & Saran"),
@@ -3170,64 +3152,51 @@
       statusPersona("Persona dihapus");
     });
 
-    // ========== FUNGSI KIRIM KE GEMINI (dengan cadangan model) ==========
-    // Tanpa loop for/while: kalau model ke-i gagal, fungsi ini
-    // memanggil dirinya sendiri untuk model ke-(i+1).
-    // Objek "s" mencatat apa yang terjadi di tiap model.
-    async function callGemini(i = 0, s = { n429: 0, nHarian: 0, nLain: 0, retry: 0, pesan: "Terjadi error" }) {
-      if (i >= MODELS.length) {
-        // Semua model sudah dicoba dan gagal
-        const err = new Error(s.pesan);
-        // Kalau semua kegagalannya karena kuota (429), tandai sebagai limit
-        if (s.n429 > 0 && s.nLain === 0) {
-          err.limit = (s.nHarian === s.n429) ? "harian" : "menit";
-          err.retry = s.retry;
-        }
-        throw err;
-      }
-
+    // ========== FUNGSI KIRIM KE BACKEND AI ==========
+    // Gemini tidak lagi dipanggil langsung dari browser.
+    // Apps Script yang menangani API key dan fallback antar-model.
+    async function callGemini() {
       const chat = aktif();
-      const model = MODELS[i];
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
-      const res = await fetch(url, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-goog-api-key": apiKey
-        },
-        body: JSON.stringify({
-          system_instruction: { parts: [{ text: promptSistem(chat) }] },   // persona + nama pengguna
-          contents: chat.history.slice(-19),   // kirim 19 pesan terakhir dari obrolan aktif
-          generationConfig: { temperature: SUHU[personaChat(chat).kreativitas] || 1.0 }
-        })
-      });
 
-      const data = await res.json();
-      if (res.ok) {
-        console.log("Model yang dipakai:", model);
-        return data;                      // berhasil, selesai
+      const payload = {
+        systemInstruction: promptSistem(chat),
+        contents: chat.history.slice(-19),
+        temperature: SUHU[personaChat(chat).kreativitas] || 1.0
+      };
+
+      let res;
+      try {
+        res = await fetch(API_URL, {
+          method: "POST",
+          headers: {
+            "Content-Type": "text/plain;charset=utf-8"
+          },
+          body: JSON.stringify(payload)
+        });
+      } catch (e) {
+        throw new Error("Tidak bisa terhubung ke server AI. Periksa koneksi internet atau URL backend.");
       }
 
-      const pesan = `[${model}] ` + (data.error?.message || "Terjadi error");
-
-      // Error yang bukan soal model (misal key salah): berhenti di sini
-      if (!BOLEH_LANJUT.includes(res.status)) throw new Error(pesan);
-
-      // Catat jenis kegagalannya
-      if (res.status === 429) {
-        s.n429++;
-        // Kuota harian biasanya ditandai "PerDay" di detail error
-        if (JSON.stringify(data).includes("PerDay")) s.nHarian++;
-        // Ambil "Please retry in 56.7s" dari pesan error
-        const m = /retry in ([\d.]+)s/i.exec(data.error?.message || "");
-        if (m) s.retry = Math.max(s.retry, parseFloat(m[1]));
-      } else if (res.status !== 404) {
-        s.nLain++;   // server sibuk/error (bukan kuota, bukan model tidak ada)
+      let data;
+      try {
+        data = await res.json();
+      } catch (e) {
+        throw new Error("Server AI mengirim respons yang tidak dikenali.");
       }
-      s.pesan = pesan;
 
-      // Coba model berikutnya
-      return callGemini(i + 1, s);
+      if (data.error) {
+        throw new Error(data.error.message || "Terjadi error pada server AI.");
+      }
+
+      if (!data.candidates?.length) {
+        throw new Error("AI tidak mengembalikan jawaban.");
+      }
+
+      if (data.usedModel) {
+        console.log("Model yang dipakai:", data.usedModel);
+      }
+
+      return data;
     }
 
     // ========== FUNGSI KIRIM PESAN ==========
