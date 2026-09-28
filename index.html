@@ -146,13 +146,14 @@
     .row.user { justify-content: flex-end; }
     .row.ai { align-items: flex-end; }
     .col { min-width: 0; max-width: 78%; }
+    .row.user .col { display: flex; flex-direction: column; align-items: flex-end; }
     .who { margin: 0 0 5px 6px; font-size: 11.5px; font-weight: 600; color: var(--text-soft); }
     .msg {
       padding: 10px 14px; border-radius: 18px; font-size: 14.5px;
       line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere;
     }
     .msg.user {
-      max-width: 78%; background: var(--user-bg); color: var(--user-text);
+      background: var(--user-bg); color: var(--user-text);
       border-bottom-right-radius: 6px; box-shadow: var(--shadow);
     }
     .msg.user em { color: var(--user-em); }
@@ -161,6 +162,18 @@
       border-bottom-left-radius: 6px; box-shadow: var(--shadow);
     }
     .msg em { font-style: italic; color: var(--text-soft); }
+
+    /* Tombol aksi kecil di bawah tiap pesan: Salin, Coba lagi, Edit, Hapus */
+    .msg-actions { display: flex; gap: 2px; margin-top: 4px; }
+    .msg-actions button {
+      width: 26px; height: 26px; border: none; border-radius: 50%;
+      background: none; color: var(--text-soft);
+      display: flex; align-items: center; justify-content: center;
+    }
+    .msg-actions button:active { transform: scale(0.88); }
+    .msg-actions button.armed { background: #b3261e; color: #fff; }
+    /* Avatar tetap sejajar dengan bubble, bukan dengan deretan ikon di bawahnya */
+    .row.ai:has(.msg-actions) > .av { margin-bottom: 30px; }
 
     /* Animasi titik saat Luna mengetik */
     .typing { display: flex; gap: 5px; padding: 15px 16px; }
@@ -1676,7 +1689,15 @@
     }
 
     // Menambah satu baris pesan. Mengembalikan baris-nya; bubble-nya ada di baris.bubble
-    function addMessage(text, who, persona) {
+    // Ikon-ikon kecil buat tombol aksi di bawah tiap pesan
+    const IKON_SALIN = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
+    const IKON_REGEN  = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>';
+    const IKON_EDIT   = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>';
+    const IKON_HAPUS  = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>';
+
+    // aksi (opsional): { idx, terakhirUser, terakhirAI } -> menentukan tombol apa saja yang muncul.
+    // Kalau tidak diisi (dipakai buat bubble yang lagi berjalan/pembuka), tidak ada tombol sama sekali.
+    function addMessage(text, who, persona, aksi) {
       const row = document.createElement("div");
       row.className = "row " + who;
 
@@ -1684,21 +1705,65 @@
       bubble.className = "msg " + who;
       isiBubble(bubble, text);
 
+      const col = document.createElement("div");
+      col.className = "col";
+
       if (who === "ai") {
         const av = document.createElement("div");
         const p = persona || personaChat(sesi ? aktif() : null);
         av.className = "av";
         isiAvatar(av, p);
 
-        const col = document.createElement("div");
-        col.className = "col";
         const nama = document.createElement("div");
         nama.className = "who";
         nama.textContent = p.nama;
         col.append(nama, bubble);
         row.append(av, col);
       } else {
-        row.appendChild(bubble);
+        col.appendChild(bubble);
+        row.appendChild(col);
+      }
+
+      if (aksi) {
+        const bar = document.createElement("div");
+        bar.className = "msg-actions";
+
+        const btnSalin = document.createElement("button");
+        btnSalin.type = "button";
+        btnSalin.innerHTML = IKON_SALIN;
+        btnSalin.setAttribute("aria-label", "Salin");
+        btnSalin.dataset.msgAction = "salin";
+        btnSalin.dataset.idx = aksi.idx;
+        bar.appendChild(btnSalin);
+
+        if (who === "ai" && aksi.terakhirAI) {
+          const btnRegen = document.createElement("button");
+          btnRegen.type = "button";
+          btnRegen.innerHTML = IKON_REGEN;
+          btnRegen.setAttribute("aria-label", "Coba lagi");
+          btnRegen.dataset.msgAction = "regen";
+          btnRegen.dataset.idx = aksi.idx;
+          bar.appendChild(btnRegen);
+        }
+        if (who === "user" && aksi.terakhirUser) {
+          const btnEdit = document.createElement("button");
+          btnEdit.type = "button";
+          btnEdit.innerHTML = IKON_EDIT;
+          btnEdit.setAttribute("aria-label", "Edit");
+          btnEdit.dataset.msgAction = "edit";
+          btnEdit.dataset.idx = aksi.idx;
+          bar.appendChild(btnEdit);
+        }
+
+        const btnHapus = document.createElement("button");
+        btnHapus.type = "button";
+        btnHapus.innerHTML = IKON_HAPUS;
+        btnHapus.setAttribute("aria-label", "Hapus");
+        btnHapus.dataset.msgAction = "hapus";
+        btnHapus.dataset.idx = aksi.idx;
+        bar.appendChild(btnHapus);
+
+        col.appendChild(bar);
       }
 
       row.bubble = bubble;
@@ -1931,11 +1996,18 @@
         return;
       }
 
-      if (chat.opening) addMessage(chat.opening, "ai");   // pesan pembuka dari persona (kalau ada)
-      chat.history.forEach(item => {
+      if (chat.opening) addMessage(chat.opening, "ai");   // pesan pembuka dari persona (kalau ada), tanpa tombol aksi
+
+      // Cari indeks pesan user & AI paling akhir, buat nentuin tombol "Edit"/"Coba lagi"
+      const idxUser = chat.history.reduce((a, it, i) => it.role === "user" ? i : a, -1);
+      const idxAI = chat.history.reduce((a, it, i) => it.role === "model" ? i : a, -1);
+
+      chat.history.forEach((item, idx) => {
         const teks = item?.parts?.[0]?.text;
         if (!teks) return;
-        addMessage(teks, item.role === "user" ? "user" : "ai");
+        addMessage(teks, item.role === "user" ? "user" : "ai", null, {
+          idx, terakhirUser: idx === idxUser, terakhirAI: idx === idxAI
+        });
       });
     }
 
@@ -3231,6 +3303,31 @@
     }
 
     // ========== FUNGSI KIRIM PESAN ==========
+    // Minta AI membalas berdasarkan chat.history SAAT INI (pesan user harus sudah
+    // ada di paling akhir sebelum manggil ini), lalu tampilkan hasilnya di 'loading'.
+    // Dipakai oleh sendMessage() (pesan baru) dan regenerateTerakhir() (coba lagi).
+    async function prosesBalasanAI(chat, loading, pertama) {
+      const data = await callGemini();
+      const teksBalasan = data.candidates?.[0]?.content?.parts?.[0]?.text;
+      const reply = teksBalasan || "(jawaban kosong atau diblokir)";
+      chat.history.push({ role: "model", parts: [{ text: reply }] });
+
+      // Judul otomatis dari pesan pertama (kecuali sudah diganti manual)
+      if (pertama && !chat.custom) chat.title = judulDari(chat.history);
+      chat.updated = Date.now();
+      simpanSemua();
+      renderList();
+      if (teksBalasan) catatPakai();   // hanya balasan yang benar-benar datang yang dihitung
+
+      // Balasan sudah tersimpan utuh; sekarang tinggal ditampilkan perlahan
+      try {
+        await ketikBertahap(loading.bubble, reply);
+      } catch (e) {
+        isiBubble(loading.bubble, reply);
+      }
+      if (jatahHabis()) tampilPopupJatah();   // itu pesan terakhir hari ini
+    }
+
     async function sendMessage() {
       if (busy || locked || !sesi) return;
       if (jatahHabis()) { tampilPopupJatah(); return; }
@@ -3256,25 +3353,8 @@
       tampilMengetik(loading);
 
       try {
-        const data = await callGemini();
-        const teksBalasan = data.candidates?.[0]?.content?.parts?.[0]?.text;
-        const reply = teksBalasan || "(jawaban kosong atau diblokir)";
-        chat.history.push({ role: "model", parts: [{ text: reply }] });
-
-        // Judul otomatis dari pesan pertama (kecuali sudah diganti manual)
-        if (pertama && !chat.custom) chat.title = judulDari(chat.history);
-        chat.updated = Date.now();
-        simpanSemua();
-        renderList();
-        if (teksBalasan) catatPakai();   // hanya balasan yang benar-benar datang yang dihitung
-
-        // Balasan sudah tersimpan utuh; sekarang tinggal ditampilkan perlahan
-        try {
-          await ketikBertahap(loading.bubble, reply);
-        } catch (e) {
-          isiBubble(loading.bubble, reply);
-        }
-        if (jatahHabis()) tampilPopupJatah();   // itu pesan terakhir hari ini
+        await prosesBalasanAI(chat, loading, pertama);
+        renderChat();   // render ulang biar tombol aksi (salin/coba lagi/edit/hapus) muncul di posisi yang tepat
 
       } catch (err) {
         chat.history.pop(); // buang pesan user yang gagal
@@ -3300,6 +3380,126 @@
         updatePlaceholder();
       }
     }
+
+    // ========== KONTROL ATAS BALASAN: salin, hapus, coba lagi, edit ==========
+    async function salinPesan(teks) {
+      try {
+        await navigator.clipboard.writeText(teks);
+        tampilToast("Pesan disalin");
+      } catch (e) {
+        tampilToast("Gagal menyalin");
+      }
+    }
+
+    let pesanArmed = null;      // "idx:role" pesan yang tombol Hapus-nya lagi nunggu ketukan kedua
+    let pesanArmedTimer = null;
+
+    function klikHapusPesan(btn, chat, idx) {
+      const kunci = idx + ":" + (chat.history[idx]?.role || "");
+      if (pesanArmed === kunci) {
+        clearTimeout(pesanArmedTimer);
+        pesanArmed = null;
+        hapusPesan(chat, idx);
+        return;
+      }
+      chatEl.querySelectorAll('.msg-actions [data-msg-action="hapus"].armed').forEach(b => b.classList.remove("armed"));
+      pesanArmed = kunci;
+      btn.classList.add("armed");
+      clearTimeout(pesanArmedTimer);
+      pesanArmedTimer = setTimeout(() => {
+        pesanArmed = null;
+        btn.classList.remove("armed");
+      }, 3000);
+    }
+
+    function hapusPesan(chat, idx) {
+      if (busy) {
+        tampilPopup("Tunggu sebentar", "Balasan masih berjalan. Tunggu sampai selesai dulu ya.");
+        return;
+      }
+      chat.history.splice(idx, 1);
+      chat.updated = Date.now();
+      simpanSemua();
+      renderList();
+      renderChat();
+    }
+
+    // Hapus pesan user ini beserta semua sesudahnya, lalu isikan teksnya ke kolom
+    // ketik supaya bisa diubah dan dikirim ulang lewat alur kirim pesan biasa.
+    function editPesan(idx) {
+      if (busy) {
+        tampilPopup("Tunggu sebentar", "Balasan masih berjalan. Tunggu sampai selesai dulu ya.");
+        return;
+      }
+      const chat = aktif();
+      if (!chat) return;
+      const teks = chat.history[idx]?.parts?.[0]?.text || "";
+      chat.history.splice(idx);   // buang pesan ini & semua sesudahnya (termasuk balasan AI-nya)
+      chat.updated = Date.now();
+      simpanSemua();
+      renderList();
+      renderChat();
+      inputEl.value = teks;
+      updateSendBtn();
+      inputEl.focus();
+    }
+
+    // Buang balasan AI paling akhir, lalu minta AI membalas ulang dari histori yang sama
+    async function regenerateTerakhir() {
+      if (locked || !sesi) return;
+      if (busy) {
+        tampilPopup("Tunggu sebentar", "Balasan masih berjalan. Tunggu sampai selesai dulu ya.");
+        return;
+      }
+      const chat = aktif();
+      if (!chat) return;
+      const idxAI = chat.history.reduce((a, it, i) => it.role === "model" ? i : a, -1);
+      if (idxAI === -1) return;
+      if (jatahHabis()) { tampilPopupJatah(); return; }
+
+      busy = true;
+      updateSendBtn();
+      chat.history.splice(idxAI, 1);   // buang balasan lama
+      renderChat();
+
+      const loading = addMessage("", "ai");
+      tampilMengetik(loading);
+
+      try {
+        await prosesBalasanAI(chat, loading, false);
+        renderChat();
+      } catch (err) {
+        if (err.limit) {
+          loading.remove();
+          const until = err.limit === "harian"
+            ? waktuResetHarian()
+            : Date.now() + (err.retry > 0 ? err.retry : 60) * 1000;
+          kunciKarenaLimit(until, err.limit);
+        } else {
+          isiBubble(loading.bubble, "Error: " + err.message);
+        }
+      } finally {
+        busy = false;
+        updateSendBtn();
+        updatePlaceholder();
+      }
+    }
+
+    // Satu pendengar klik untuk semua tombol aksi pesan (delegasi, biar tetap
+    // jalan walau bubble-nya digambar ulang lewat renderChat())
+    chatEl.addEventListener("click", e => {
+      const btn = e.target.closest("[data-msg-action]");
+      if (!btn) return;
+      const aksi = btn.dataset.msgAction;
+      const idx = Number(btn.dataset.idx);
+      const chat = aktif();
+      if (!chat) return;
+
+      if (aksi === "salin") salinPesan(chat.history[idx]?.parts?.[0]?.text || "");
+      else if (aksi === "hapus") klikHapusPesan(btn, chat, idx);
+      else if (aksi === "edit") editPesan(idx);
+      else if (aksi === "regen") regenerateTerakhir();
+    });
 
     // ========== TOMBOL & KEYBOARD ==========
     sendBtn.addEventListener("click", sendMessage);
