@@ -172,6 +172,23 @@
     }
     .msg-actions button:active { transform: scale(0.88); }
     .msg-actions button.armed { background: #b3261e; color: #fff; }
+
+    /* Kotak edit langsung di bubble pesan */
+    .msg-edit-box { width: min(78vw, 420px); }
+    .msg-edit-box textarea {
+      width: 100%; min-height: 44px; max-height: 240px; padding: 10px 14px;
+      border: none; border-radius: 18px; border-bottom-right-radius: 6px;
+      outline: none; resize: none; overflow-y: auto;
+      background: var(--user-bg); color: var(--user-text);
+      font-family: inherit; font-size: 14.5px; line-height: 1.55;
+      box-shadow: var(--shadow);
+    }
+    .msg-edit-actions { display: flex; gap: 6px; justify-content: flex-end; margin-top: 6px; }
+    .msg-edit-actions button {
+      padding: 7px 14px; border: none; border-radius: 999px; font-size: 13px; font-weight: 700;
+    }
+    .msg-edit-actions .btn-batal { background: var(--surface2); color: var(--text); }
+    .msg-edit-actions .btn-simpan { background: var(--btn); color: var(--btn-text); }
     /* Avatar tetap sejajar dengan bubble, bukan dengan deretan ikon di bawahnya */
     .row.ai:has(.msg-actions) > .av { margin-bottom: 30px; }
 
@@ -1430,6 +1447,7 @@
 
     let busy = false;     // penanda: lagi nunggu balasan atau tidak
     let locked = false;   // penanda: lagi dikunci karena limit habis
+    let editingMsgIdx = null;   // indeks pesan yang lagi diedit langsung di bubble-nya, atau null
     let unlockTimer = null;
 
     // ========== TEMA TERANG / GELAP ==========
@@ -1458,7 +1476,7 @@
 
     // Tombol kirim aktif hanya kalau: sudah login, ada teks, tidak menunggu balasan, tidak terkunci limit
     function updateSendBtn() {
-      sendBtn.disabled = busy || locked || !sesi || jatahHabis() || inputEl.value.trim() === "";
+      sendBtn.disabled = busy || locked || !sesi || jatahHabis() || editingMsgIdx !== null || inputEl.value.trim() === "";
     }
 
     // ========== PERSONA AI ==========
@@ -1700,6 +1718,53 @@
     function addMessage(text, who, persona, aksi) {
       const row = document.createElement("div");
       row.className = "row " + who;
+
+      // Mode edit langsung di bubble: tampilkan kotak ketik + tombol Simpan/Batal,
+      // menggantikan bubble biasa, khusus untuk pesan yang sedang diedit.
+      if (who === "user" && aksi && aksi.idx === editingMsgIdx) {
+        const col = document.createElement("div");
+        col.className = "col";
+
+        const box = document.createElement("div");
+        box.className = "msg-edit-box";
+        const ta = document.createElement("textarea");
+        ta.value = text;
+        box.appendChild(ta);
+
+        const acts = document.createElement("div");
+        acts.className = "msg-edit-actions";
+        const btnBatal = document.createElement("button");
+        btnBatal.type = "button";
+        btnBatal.className = "btn-batal";
+        btnBatal.textContent = "Batal";
+        btnBatal.dataset.msgAction = "batal-edit";
+        const btnSimpan = document.createElement("button");
+        btnSimpan.type = "button";
+        btnSimpan.className = "btn-simpan";
+        btnSimpan.textContent = "Simpan & kirim";
+        btnSimpan.dataset.msgAction = "simpan-edit";
+        btnSimpan.dataset.idx = aksi.idx;
+        acts.append(btnBatal, btnSimpan);
+
+        col.append(box, acts);
+        row.appendChild(col);
+        chatEl.appendChild(row);
+
+        // Tinggi kotak ketik menyesuaikan isinya, lalu fokus & pilih semua teksnya
+        const sesuaikanTinggi = () => { ta.style.height = "auto"; ta.style.height = ta.scrollHeight + "px"; };
+        ta.addEventListener("input", sesuaikanTinggi);
+        ta.addEventListener("keydown", ev => {
+          if (ev.key === "Enter" && !ev.shiftKey) { ev.preventDefault(); btnSimpan.click(); }
+          if (ev.key === "Escape") { ev.preventDefault(); btnBatal.click(); }
+        });
+        sesuaikanTinggi();
+        ta.focus();
+        ta.select();
+
+        row.bubble = null;
+        chatEl.scrollTop = chatEl.scrollHeight;
+        return row;
+      }
 
       const bubble = document.createElement("div");
       bubble.className = "msg " + who;
@@ -2082,6 +2147,7 @@
         tampilPopup("Tunggu sebentar", "Balasan masih berjalan. Tunggu sampai selesai dulu ya.");
         return;
       }
+      editingMsgIdx = null;
       sesi = null;
       try { localStorage.removeItem(KUNCI_SESI); } catch (e) { /* abaikan */ }
       chats = [];
@@ -2885,6 +2951,7 @@
         return;
       }
       const dariPengaturan = tutupPengaturan();
+      editingMsgIdx = null;
       if (id !== activeId) {
         activeId = id;
         simpanSemua();
@@ -2906,6 +2973,7 @@
         return;
       }
       tutupPengaturan();
+      editingMsgIdx = null;
       // Kalau obrolan yang sekarang masih kosong, cukup ikut persona yang aktif
       if (aktif().history.length > 0) {
         const baru = buatChatKosong();
@@ -3329,7 +3397,7 @@
     }
 
     async function sendMessage() {
-      if (busy || locked || !sesi) return;
+      if (busy || locked || !sesi || editingMsgIdx !== null) return;
       if (jatahHabis()) { tampilPopupJatah(); return; }
       const text = inputEl.value.trim();
       if (!text) return;
@@ -3417,6 +3485,7 @@
         tampilPopup("Tunggu sebentar", "Balasan masih berjalan. Tunggu sampai selesai dulu ya.");
         return;
       }
+      editingMsgIdx = null;   // indeks bisa geser setelah pesan lain dihapus, batalkan mode edit biar aman
       chat.history.splice(idx, 1);
       chat.updated = Date.now();
       simpanSemua();
@@ -3424,24 +3493,71 @@
       renderChat();
     }
 
-    // Hapus pesan user ini beserta semua sesudahnya, lalu isikan teksnya ke kolom
-    // ketik supaya bisa diubah dan dikirim ulang lewat alur kirim pesan biasa.
-    function editPesan(idx) {
+    // Mulai/batal mode edit langsung di bubble pesan (bukan lewat kolom ketik)
+    function mulaiEditPesan(idx) {
       if (busy) {
         tampilPopup("Tunggu sebentar", "Balasan masih berjalan. Tunggu sampai selesai dulu ya.");
         return;
       }
+      editingMsgIdx = idx;
+      renderChat();
+    }
+
+    function batalEditPesan() {
+      editingMsgIdx = null;
+      renderChat();
+    }
+
+    // Simpan pesan yang diedit langsung dari bubble-nya: buang pesan ini & semua
+    // sesudahnya, ganti dengan teks barunya, lalu minta AI membalas dari situ.
+    // Riwayat TIDAK PERNAH kosong di tengah proses (pesan baru langsung masuk
+    // sebelum digambar ulang), jadi layar sambutan besar tidak ikut nongol lagi.
+    async function simpanEditPesan(idx, teksBaru) {
+      const teks = (teksBaru || "").trim();
+      if (!teks) { tampilToast("Pesan tidak boleh kosong"); return; }
+      if (busy) {
+        tampilPopup("Tunggu sebentar", "Balasan masih berjalan. Tunggu sampai selesai dulu ya.");
+        return;
+      }
+      if (locked || !sesi) return;
+      if (jatahHabis()) { tampilPopupJatah(); return; }
+
       const chat = aktif();
       if (!chat) return;
-      const teks = chat.history[idx]?.parts?.[0]?.text || "";
-      chat.history.splice(idx);   // buang pesan ini & semua sesudahnya (termasuk balasan AI-nya)
+      const pertama = idx === 0;
+
+      editingMsgIdx = null;
+      chat.history.splice(idx);                        // buang pesan lama & semua sesudahnya
+      chat.history.push({ role: "user", parts: [{ text: teks }] });
       chat.updated = Date.now();
       simpanSemua();
       renderList();
-      renderChat();
-      inputEl.value = teks;
+
+      busy = true;
       updateSendBtn();
-      inputEl.focus();
+      renderChat();                                     // tampilkan pesan yang sudah diedit
+
+      const loading = addMessage("", "ai");
+      tampilMengetik(loading);
+
+      try {
+        await prosesBalasanAI(chat, loading, pertama);
+        renderChat();
+      } catch (err) {
+        if (err.limit) {
+          loading.remove();
+          const until = err.limit === "harian"
+            ? waktuResetHarian()
+            : Date.now() + (err.retry > 0 ? err.retry : 60) * 1000;
+          kunciKarenaLimit(until, err.limit);
+        } else {
+          isiBubble(loading.bubble, "Error: " + err.message);
+        }
+      } finally {
+        busy = false;
+        updateSendBtn();
+        updatePlaceholder();
+      }
     }
 
     // Buang balasan AI paling akhir, lalu minta AI membalas ulang dari histori yang sama
@@ -3457,6 +3573,7 @@
       if (idxAI === -1) return;
       if (jatahHabis()) { tampilPopupJatah(); return; }
 
+      editingMsgIdx = null;
       busy = true;
       updateSendBtn();
       chat.history.splice(idxAI, 1);   // buang balasan lama
@@ -3497,7 +3614,12 @@
 
       if (aksi === "salin") salinPesan(chat.history[idx]?.parts?.[0]?.text || "");
       else if (aksi === "hapus") klikHapusPesan(btn, chat, idx);
-      else if (aksi === "edit") editPesan(idx);
+      else if (aksi === "edit") mulaiEditPesan(idx);
+      else if (aksi === "batal-edit") batalEditPesan();
+      else if (aksi === "simpan-edit") {
+        const ta = btn.closest(".col")?.querySelector("textarea");
+        simpanEditPesan(idx, ta ? ta.value : "");
+      }
       else if (aksi === "regen") regenerateTerakhir();
     });
 
